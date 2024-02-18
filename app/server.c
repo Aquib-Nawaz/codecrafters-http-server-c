@@ -95,7 +95,7 @@ void read_request(int client_fd ){
             strlen(random_string),random_string);
         }
 
-        if(strcmp(check_command, "file")==0 && ret.path[5]=='s'){
+        if(strcmp(ret.method, "GET")==0&&strncmp(ret.path, "/files", 6)==0){
             int lastIdx = 7;
             while(lastIdx < strlen(ret.path) && ret.path[lastIdx]!=' ')
                 lastIdx++;
@@ -142,11 +142,14 @@ void read_request(int client_fd ){
             char file_name[100];
             char file_path[200];
             strcpy(file_name, ret.path+7);
+            printf("file:- %s\n", ret.data);
             if(directory!=NULL){
                 snprintf(file_path, 200, "%s%s", directory, file_name);
-                FILE *fptr = fopen(file_name, "w");
+                printf("file:- %s\n", file_path);
+                FILE *fptr = fopen(file_path, "w");
                 fprintf(fptr, "%s", ret.data);
                 fclose(fptr);
+                strcpy(write_buffer, "HTTP/1.1 201 CREATED\r\n\r\n");
             }
         }
 
