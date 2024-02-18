@@ -6,6 +6,9 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/select.h>
+
+#include <pthread.h>
 
 struct request_struct{
     char * method;
@@ -49,12 +52,18 @@ void getPath(char* message, int len, struct request_struct* ret){
     }
 }
 
-void read_request(int client_fd){
+void read_request(int client_fd ){
+//    int client_fd  = *(int *)arg;
     char read_buffer[1024];
     int msgLen = read(client_fd, read_buffer, 1023);
+    if(msgLen==0){
+        close(client_fd);
+        return ;
+    }
     read_buffer[msgLen] = '\0';
     struct request_struct ret;
     getPath(read_buffer, msgLen, &ret);
+
     printf("%s --- %s\n", ret.path, read_buffer);
     char write_buffer[1024] = "HTTP/1.1 404 Not Found\r\n\r\n";
 
@@ -135,10 +144,49 @@ int main() {
 	 printf("Waiting for a client to connect...\n");
 	 client_addr_len = sizeof(client_addr);
 
-	 int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-     read_request(client_fd);
-	 printf("Client connected\n");
+    fd_set master, current;
+    FD_SET(server_fd, &master);
+    int max_socket_fd = server_fd+1;
+    int client_fd;
 
+//     while(1) {
+//         int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+//         printf("Client connected on socket %d\n", client_fd);
+//         pthread_t thread;
+//         if (pthread_create(&thread, NULL, read_request,
+//                            (void *)&client_fd) != 0) {
+//             printf("Failed to create thread\n");
+//             close(client_fd);
+//         } else {
+//             pthread_detach(thread);
+//         }
+////         read_request((void*)&client_fd);
+//     }
+    for(;;){
+        current = master;
+        if(select(max_socket_fd,&current,NULL,NULL,NULL)==-1){
+            perror("select");
+        }
+        for(int i=0; i<=max_socket_fd; i++){
+            if(FD_ISSET(i, &current)){
+                if(i==server_fd){
+                    client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+                    if(client_fd==-1){
+                        perror("accept");
+                    }
+                    FD_SET(client_fd, &master);
+                    if(client_fd>=max_socket_fd){
+                        max_socket_fd = client_fd+1;
+                    }
+                    printf("Client connected at socket %d\n", client_fd);
+                }
+                else{
+                    read_request(i);
+                    FD_CLR(i, &master);
+                }
+            }
+        }
+    }
 
 
 	 close(server_fd);
