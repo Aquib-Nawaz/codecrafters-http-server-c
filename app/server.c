@@ -19,7 +19,7 @@ void getPath(char* message, int len, struct request_struct* ret){
             if(lastSpace){
                 ret->path = malloc(i-lastSpace);
                 memcpy(ret->path, message+lastSpace+1, i-lastSpace-1);
-                ret->path[i-lastSpace] = '\0';
+                ret->path[i-lastSpace-1] = '\0';
                 return;
             }
             else{
@@ -38,10 +38,16 @@ void read_request(int client_fd){
     read_buffer[msgLen] = '\0';
     struct request_struct ret;
     getPath(read_buffer, msgLen, &ret);
-    char write_buffer[1024] = "HTTP/1.1 200 OK\r\n\r\n";
-    if(strcmp(ret.path, "/")!=0)
-        strcpy(write_buffer, "HTTP/1.1 404 Not Found\r\n\r\n");
-    send(client_fd, write_buffer, strlen(write_buffer), 0);
+    printf("%s --- %s\n", ret.path, read_buffer);
+    if(strcmp(ret.path, "/")==0){
+        char write_buffer[1024] = "HTTP/1.1 200 OK\r\n\r\n";
+        send(client_fd, write_buffer, strlen(write_buffer), 0);
+    }
+    else{
+        char write_buffer[1024] = "HTTP/1.1 404 Not Found\r\n\r\n";
+        send(client_fd, write_buffer, strlen(write_buffer), 0);
+
+    }
     close(client_fd);
 }
 
