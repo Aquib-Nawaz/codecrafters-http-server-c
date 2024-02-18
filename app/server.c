@@ -10,6 +10,7 @@
 struct request_struct{
     char * method;
     char * path;
+    char * userAgent;
 };
 
 void getPath(char* message, int len, struct request_struct* ret){
@@ -20,7 +21,7 @@ void getPath(char* message, int len, struct request_struct* ret){
                 ret->path = malloc(i-lastSpace);
                 memcpy(ret->path, message+lastSpace+1, i-lastSpace-1);
                 ret->path[i-lastSpace-1] = '\0';
-                return;
+                break;
             }
             else{
                 lastSpace = i;
@@ -29,6 +30,22 @@ void getPath(char* message, int len, struct request_struct* ret){
                 ret->method[i] = '\0';
             }
         }
+    }
+    char *lines = strtok(message, "\r\n");
+    while(lines != NULL){
+        if(lines[0]=='U'){
+            int start=0;
+            while(lines[start]!=' ')
+                start++;
+            start++;
+            int end = start;
+            while(lines[end]!='\r')
+                end++;
+            ret->userAgent = malloc(end-start);
+            ret->userAgent[end-start-1]='\0';
+            memcpy(ret->userAgent, lines+start, end-start-1);
+        }
+        lines = strtok(NULL, "\r\n");
     }
 }
 
@@ -47,10 +64,10 @@ void read_request(int client_fd){
 
     }
     else if(strlen(ret.path)>=6){
-        char check_echo[5];
-        check_echo[4] = '\0';
-        memcpy(check_echo,ret.path+1 ,4);
-        if(strcmp(check_echo, "echo")==0){
+        char check_command[100];
+        check_command[4] = '\0';
+        memcpy(check_command, ret.path + 1 , 4);
+        if(strcmp(check_command, "echo") == 0){
             int lastIdx = 6;
             while(lastIdx < strlen(ret.path) && ret.path[lastIdx]!=' ')
                 lastIdx++;
@@ -60,6 +77,14 @@ void read_request(int client_fd){
             snprintf(write_buffer,1023,"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
             strlen(random_string),random_string);
         }
+
+        memcpy(check_command, ret.path+1, 10);
+        check_command[10]='\0';
+        if(strcmp(check_command, "user-agent") == 0) {
+            snprintf(write_buffer,1023,"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
+                     strlen(ret.userAgent),ret.userAgent);
+        }
+
     }
     send(client_fd, write_buffer, strlen(write_buffer), 0);
     close(client_fd);
