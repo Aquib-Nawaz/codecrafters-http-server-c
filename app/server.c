@@ -39,15 +39,29 @@ void read_request(int client_fd){
     struct request_struct ret;
     getPath(read_buffer, msgLen, &ret);
     printf("%s --- %s\n", ret.path, read_buffer);
+    char write_buffer[1024] = "HTTP/1.1 404 Not Found\r\n\r\n";
+
     if(strcmp(ret.path, "/")==0){
-        char write_buffer[1024] = "HTTP/1.1 200 OK\r\n\r\n";
-        send(client_fd, write_buffer, strlen(write_buffer), 0);
-    }
-    else{
-        char write_buffer[1024] = "HTTP/1.1 404 Not Found\r\n\r\n";
+        strcpy(write_buffer, "HTTP/1.1 200 OK\r\n\r\n");
         send(client_fd, write_buffer, strlen(write_buffer), 0);
 
     }
+    else if(strlen(ret.path)>=6){
+        char check_echo[5];
+        check_echo[4] = '\0';
+        memcpy(check_echo,ret.path+1 ,4);
+        if(strcmp(check_echo, "echo")==0){
+            int lastIdx = 6;
+            while(lastIdx < strlen(ret.path) && ret.path[lastIdx]!=' ')
+                lastIdx++;
+            char random_string[lastIdx-6+1];
+            memcpy(random_string, ret.path+6,lastIdx-6);
+            random_string[lastIdx-6]='\0';
+            snprintf(write_buffer,1023,"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
+            strlen(random_string),random_string);
+        }
+    }
+    send(client_fd, write_buffer, strlen(write_buffer), 0);
     close(client_fd);
 }
 
