@@ -7,13 +7,42 @@
 #include <errno.h>
 #include <unistd.h>
 
+struct request_struct{
+    char * method;
+    char * path;
+};
+
+void getPath(char* message, int len, struct request_struct* ret){
+    int lastSpace = 0;
+    for(int i=0; i<len; i++){
+        if(message[i]==' '){
+            if(lastSpace){
+                ret->path = malloc(i-lastSpace);
+                memcpy(ret->path, message+lastSpace+1, i-lastSpace-1);
+                ret->path[i-lastSpace] = '\0';
+                return;
+            }
+            else{
+                lastSpace = i;
+                ret->method = malloc(i+1);
+                memcpy(ret->method, message, i);
+                ret->method[i] = '\0';
+            }
+        }
+    }
+}
+
 void read_request(int client_fd){
     char read_buffer[1024];
-    read_buffer[1023] = '\0';
-    read(client_fd, read_buffer, 1023);
-
-    char write_buffer[] = "HTTP/1.1 200 OK\r\n\r\n";
+    int msgLen = read(client_fd, read_buffer, 1023);
+    read_buffer[msgLen] = '\0';
+    struct request_struct ret;
+    getPath(read_buffer, msgLen, &ret);
+    char write_buffer[1024] = "HTTP/1.1 200 OK\r\n\r\n";
+    if(strcmp(ret.path, "/")!=0)
+        strcpy(write_buffer, "HTTP/1.1 404 Not Found\r\n\r\n");
     send(client_fd, write_buffer, strlen(write_buffer), 0);
+    close(client_fd);
 }
 
 int main() {
