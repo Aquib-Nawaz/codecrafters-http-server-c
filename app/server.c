@@ -16,6 +16,7 @@ struct request_struct{
     char * method;
     char * path;
     char * userAgent;
+    char * data;
 };
 
 void getPath(char* message, int len, struct request_struct* ret){
@@ -38,7 +39,7 @@ void getPath(char* message, int len, struct request_struct* ret){
     }
     char *lines = strtok(message, "\r\n");
     while(lines != NULL){
-        if(lines[0]=='U'){
+        if(strncmp(lines, "User-Agent:", 11)==0){
             int start=0;
             while(lines[start]!=' ')
                 start++;
@@ -49,6 +50,11 @@ void getPath(char* message, int len, struct request_struct* ret){
             ret->userAgent = malloc(end-start);
             ret->userAgent[end-start-1]='\0';
             memcpy(ret->userAgent, lines+start, end-start-1);
+        }
+        else if(strncmp(lines-3, "\n\r\n",3)==0){
+            ret->data = malloc(strlen(lines)+1);
+            ret->data[strlen(lines)]='\0';
+            strcpy(ret->data, lines);
         }
         lines = strtok(NULL, "\r\n");
     }
@@ -122,7 +128,6 @@ void read_request(int client_fd ){
                 }
             }
 //            return;
-
         }
 
         if(strlen(ret.path)==11)
@@ -131,6 +136,18 @@ void read_request(int client_fd ){
         if(strcmp(check_command, "user-agent") == 0) {
             snprintf(write_buffer,1023,"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
                      strlen(ret.userAgent),ret.userAgent);
+        }
+
+        if(strcmp(ret.method, "POST")==0){
+            char file_name[100];
+            char file_path[200];
+            strcpy(file_name, ret.path+7);
+            if(directory!=NULL){
+                snprintf(file_path, 200, "%s%s", directory, file_name);
+                FILE *fptr = fopen(file_name, "w");
+                fprintf(fptr, "%s", ret.data);
+                fclose(fptr);
+            }
         }
 
     }
