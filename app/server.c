@@ -7,6 +7,15 @@
 #include <errno.h>
 #include <unistd.h>
 
+void read_request(int client_fd){
+    char read_buffer[1024];
+    read_buffer[1023] = '\0';
+    read(client_fd, read_buffer, 1023);
+
+    char write_buffer[] = "HTTP/1.1 200 OK\r\n\r\n";
+    send(client_fd, write_buffer, strlen(write_buffer), 0);
+}
+
 int main() {
 	// Disable output buffering
 	setbuf(stdout, NULL);
@@ -52,8 +61,11 @@ int main() {
 	 printf("Waiting for a client to connect...\n");
 	 client_addr_len = sizeof(client_addr);
 
-	 accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+	 int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+     read_request(client_fd);
 	 printf("Client connected\n");
+
+
 
 	 close(server_fd);
 
