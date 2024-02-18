@@ -7,9 +7,11 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/select.h>
-
+#include "fcntl.h"
 #include <pthread.h>
+#include <sys/stat.h>
 
+char *directory=NULL;
 struct request_struct{
     char * method;
     char * path;
@@ -70,7 +72,7 @@ void read_request(int client_fd ){
     if(strcmp(ret.path, "/")==0){
         strcpy(write_buffer, "HTTP/1.1 200 OK\r\n\r\n");
         send(client_fd, write_buffer, strlen(write_buffer), 0);
-
+        return;
     }
     else if(strlen(ret.path)>=6){
         char check_command[100];
@@ -87,7 +89,44 @@ void read_request(int client_fd ){
             strlen(random_string),random_string);
         }
 
-        memcpy(check_command, ret.path+1, 10);
+        if(strcmp(check_command, "file")==0 && ret.path[5]=='s'){
+            int lastIdx = 7;
+            while(lastIdx < strlen(ret.path) && ret.path[lastIdx]!=' ')
+                lastIdx++;
+            if(directory!=NULL) {
+                char file_name[lastIdx - 7 + 1 + strlen(directory)];
+                strcpy(file_name, directory);
+                memcpy(file_name+ strlen(directory),ret.path+7,lastIdx-7);
+//                file_name[strlen(directory)]='/';
+                file_name[lastIdx-7+ strlen(directory)]='\0';
+                printf("file:- %s\n", file_name);
+                int fd = open(file_name, O_RDONLY);
+                if (fd != -1) {
+                    struct stat st;
+                    if (stat(file_name, &st) == 0) {
+                        const char *response_format =
+                                "HTTP/1.1 200 OK\r\nContent-Type: "
+                                "application/octet-stream\r\nContent-Length: %zu\r\n\r\n";
+                        char response[1024];
+                        sprintf(response, response_format, st.st_size);
+                        send(client_fd, response, strlen(response), 0);
+                        // Send the file contents
+                        ssize_t bytes_read;
+                        char buffer[1024];
+                        while ((bytes_read = read(fd, buffer, 1024)) > 0) {
+                            printf("%zd\n", bytes_read);
+                            send(client_fd, buffer, bytes_read, 0);
+                        }
+                        close(fd);
+                    }
+                }
+            }
+//            return;
+
+        }
+
+        if(strlen(ret.path)==11)
+            memcpy(check_command, ret.path+1, 10);
         check_command[10]='\0';
         if(strcmp(check_command, "user-agent") == 0) {
             snprintf(write_buffer,1023,"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
@@ -99,10 +138,12 @@ void read_request(int client_fd ){
     close(client_fd);
 }
 
-int main() {
+int main(int argc, char*argv[]) {
 	// Disable output buffering
 	setbuf(stdout, NULL);
-
+    if(argc==3){
+        directory = argv[2];
+    }
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
 
